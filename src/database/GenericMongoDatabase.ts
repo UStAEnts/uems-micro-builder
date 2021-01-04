@@ -50,44 +50,62 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
      */
     private _changelog?: Collection;
 
+    private _configuration?: MongoDBConfiguration;
+
     /**
      * If this class currently has an good connection to the database
      * @private
      */
     private _connected = false;
 
+    constructor(_configuration: MongoDBConfiguration);
+    constructor(database: Db, collections: MongoDBConfiguration['collections']);
     constructor(
         /**
          * The configuration for connecting to the database which will be used to form the URI string and connection
          * settings
          */
-        private _configuration: MongoDBConfiguration,
+        _configurationOrDB: MongoDBConfiguration | Db,
+        collections?: MongoDBConfiguration['collections'],
     ) {
-        const username = encodeURIComponent(_configuration.username);
-        const password = encodeURIComponent(_configuration.password);
-        const uri = encodeURIComponent(_configuration.uri);
-        const server = encodeURIComponent(_configuration.server);
-        const { port } = _configuration;
+        if (_configurationOrDB instanceof Db) {
+            if(!collections) throw new Error('Invalid invocation, collection must be provided');
+            // If collections is defined then we need the second constructor where the first param is a db
+            this._database = _configurationOrDB;
 
-        MongoClient.connect(
-            `mongodb://${username}:${password}@${uri}:${port}/${server}`,
-            {
-                ...(_configuration.settings ? _configuration.settings : {}),
-                useNewUrlParser: true,
-                useUnifiedTopology: true,
-            } as MongoClientOptions,
-        ).then((client) => {
-            this._client = client;
-            this._database = client.db(_configuration.database);
-
-            this._details = this._database.collection(_configuration.collections.details);
-            this._changelog = this._database.collection(_configuration.collections.changelog);
+            this._details = _configurationOrDB.collection(collections.details);
+            this._changelog = _configurationOrDB.collection(collections.changelog);
 
             this._connected = true;
             this._emitter.emit('ready');
-        }).catch((err: unknown) => {
-            this._emitter.emit('error', err);
-        });
+        } else {
+            this._configuration = _configurationOrDB;
+            const username = encodeURIComponent(this._configuration.username);
+            const password = encodeURIComponent(this._configuration.password);
+            const uri = encodeURIComponent(this._configuration.uri);
+            const server = encodeURIComponent(this._configuration.server);
+            const { port } = this._configuration;
+
+            MongoClient.connect(
+                `mongodb://${username}:${password}@${uri}:${port}/${server}`,
+                {
+                    ...(this._configuration.settings ? this._configuration.settings : {}),
+                    useNewUrlParser: true,
+                    useUnifiedTopology: true,
+                } as MongoClientOptions,
+            ).then((client) => {
+                this._client = client;
+                this._database = client.db(_configurationOrDB.database);
+
+                this._details = this._database.collection(_configurationOrDB.collections.details);
+                this._changelog = this._database.collection(_configurationOrDB.collections.changelog);
+
+                this._connected = true;
+                this._emitter.emit('ready');
+            }).catch((err: unknown) => {
+                this._emitter.emit('error', err);
+            });
+        }
     }
 
     /**
