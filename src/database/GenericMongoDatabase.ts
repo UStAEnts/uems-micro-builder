@@ -58,8 +58,10 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
      */
     private _connected = false;
 
-    constructor(_configuration: MongoDBConfiguration);
-    constructor(database: Db, collections: MongoDBConfiguration['collections']);
+    public constructor(_configuration: MongoDBConfiguration);
+    public constructor(database: Db, collections: MongoDBConfiguration['collections']);
+    // TODO: remove this shim?
+    public constructor(_configurationOrDB: MongoDBConfiguration | Db, collections?: MongoDBConfiguration['collections']);
     constructor(
         /**
          * The configuration for connecting to the database which will be used to form the URI string and connection
@@ -69,7 +71,7 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
         collections?: MongoDBConfiguration['collections'],
     ) {
         if (_configurationOrDB instanceof Db) {
-            if(!collections) throw new Error('Invalid invocation, collection must be provided');
+            if (!collections) throw new Error('Invalid invocation, collection must be provided');
             // If collections is defined then we need the second constructor where the first param is a db
             this._database = _configurationOrDB;
 

@@ -1,6 +1,6 @@
 import { GenericMongoDatabase, MongoDBConfiguration } from "./GenericMongoDatabase";
 import { CommentMessage, CommentResponse } from "@uems/uemscommlib";
-import { Collection, FilterQuery, ObjectId, UpdateQuery } from "mongodb";
+import { Collection, Db, FilterQuery, ObjectId, UpdateQuery } from "mongodb";
 import ReadCommentMessage = CommentMessage.ReadCommentMessage;
 import DeleteCommentMessage = CommentMessage.DeleteCommentMessage;
 import InternalComment = CommentResponse.InternalComment;
@@ -42,8 +42,11 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
 
     private _assetType: string[];
 
-    constructor(configuration: MongoDBConfiguration, assetType: string[]) {
-        super(configuration);
+
+    constructor(assetType: string[], configuration: MongoDBConfiguration);
+    constructor(assetType: string[], db: Db, collections: MongoDBConfiguration['collections']);
+    constructor(assetType: string[], _configurationOrDB: MongoDBConfiguration | Db, collections?: MongoDBConfiguration['collections']) {
+        super(_configurationOrDB, collections);
         this._assetType = assetType;
     }
 
