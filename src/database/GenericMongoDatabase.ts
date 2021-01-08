@@ -41,14 +41,14 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
 
     /**
      * The collection storing entries themselves
-     * @private
+     * @protected
      */
-    private _details?: Collection;
+    protected _details?: Collection;
     /**
      * The collection storing changes to entries
-     * @private
+     * @protected
      */
-    private _changelog?: Collection;
+    protected _changelog?: Collection;
 
     private _configuration?: MongoDBConfiguration;
 
