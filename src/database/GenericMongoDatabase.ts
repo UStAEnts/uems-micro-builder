@@ -70,18 +70,12 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
         _configurationOrDB: MongoDBConfiguration | Db,
         collections?: MongoDBConfiguration['collections'],
     ) {
-        if (_configurationOrDB instanceof Db) {
-            if (!collections) throw new Error('Invalid invocation, collection must be provided');
-            // If collections is defined then we need the second constructor where the first param is a db
-            this._database = _configurationOrDB;
+        // TODO fix this hacky as fuck shim to make it work
+        if (Object.prototype.hasOwnProperty.call(_configurationOrDB, 'username') && Object.prototype.hasOwnProperty.call(_configurationOrDB, 'collections')) {
+            const conf = _configurationOrDB as MongoDBConfiguration;
 
-            this._details = _configurationOrDB.collection(collections.details);
-            this._changelog = _configurationOrDB.collection(collections.changelog);
-
-            this._connected = true;
-            this._emitter.emit('ready');
-        } else {
-            this._configuration = _configurationOrDB;
+            __.debug('creating database using a new database connection');
+            this._configuration = conf;
             const username = encodeURIComponent(this._configuration.username);
             const password = encodeURIComponent(this._configuration.password);
             const uri = encodeURIComponent(this._configuration.uri);
@@ -97,16 +91,29 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
                 } as MongoClientOptions,
             ).then((client) => {
                 this._client = client;
-                this._database = client.db(_configurationOrDB.database);
+                this._database = client.db(conf.database);
 
-                this._details = this._database.collection(_configurationOrDB.collections.details);
-                this._changelog = this._database.collection(_configurationOrDB.collections.changelog);
+                this._details = this._database.collection(conf.collections.details);
+                this._changelog = this._database.collection(conf.collections.changelog);
 
                 this._connected = true;
                 this._emitter.emit('ready');
             }).catch((err: unknown) => {
                 this._emitter.emit('error', err);
             });
+        } else {
+            const db = _configurationOrDB as Db;
+
+            if (!collections) throw new Error('Invalid invocation, collection must be provided');
+            __.debug('creating database using an existing database connection', { collections });
+            // If collections is defined then we need the second constructor where the first param is a db
+            this._database = db;
+
+            this._details = db.collection(collections.details);
+            this._changelog = db.collection(collections.changelog);
+
+            this._connected = true;
+            this._emitter.emit('ready');
         }
     }
 
