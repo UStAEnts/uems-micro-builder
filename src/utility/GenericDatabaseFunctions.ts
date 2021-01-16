@@ -81,8 +81,8 @@ export async function genericUpdate<T extends { id: string }, K extends keyof T>
     keys: K[],
     details: Collection,
     additionalFilters: any = {},
-    keyManipulations?: Record<K, string>,
     duplicateHandler?: (e: MongoError) => Promise<void> | void,
+    keyManipulations?: Record<K, string>,
 ) {
     const filter: FilterQuery<any> = {
         _id: new ObjectId(message.id),
