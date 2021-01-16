@@ -81,6 +81,7 @@ export async function genericUpdate<T extends { id: string }, K extends keyof T>
     keys: K[],
     details: Collection,
     additionalFilters: any = {},
+    keyManipulations?: Record<K, string>,
     duplicateHandler?: (e: MongoError) => Promise<void> | void,
 ) {
     const filter: FilterQuery<any> = {
@@ -91,7 +92,13 @@ export async function genericUpdate<T extends { id: string }, K extends keyof T>
     const set: Record<string, any> = {};
 
     for (const key of keys) {
-        if (message[key] !== undefined) set[key as string] = message[key];
+        if (message[key] !== undefined) {
+            if (keyManipulations && keyManipulations.hasOwnProperty(key)) {
+                set[keyManipulations[key]] = message[key];
+            } else {
+                set[key as string] = message[key];
+            }
+        }
     }
 
     const changes: UpdateQuery<any> = {
