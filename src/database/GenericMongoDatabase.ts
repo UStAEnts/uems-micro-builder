@@ -51,6 +51,10 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
      */
     protected _changelog?: Collection;
 
+    /**
+     * The configuration used the construct this database connection
+     * @private
+     */
     private _configuration?: MongoDBConfiguration;
 
     /**
@@ -59,11 +63,32 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
      */
     private _connected = false;
 
-    public constructor(_configuration: MongoDBConfiguration);
-    public constructor(database: Db, collections: MongoDBConfiguration['collections']);
+    /**
+     * Creates a new database connection from scratch using the configuration settings provided. On successful setup
+     * 'ready' event will be emitted and on failure it will emit 'error'
+     * @param _configuration the configuration used to produce the database connection
+     * @protected
+     */
+    protected constructor(_configuration: MongoDBConfiguration);
+    /**
+     * Creates the database from an existing database connection using the collections provided. This will not construct
+     * a new database connection and will emit 'ready' as soon as everything is prepared. This should happen
+     * asynchronously
+     * @param database the database on which this mongo database instance should rest
+     * @param collections the collections to be used in the database connection
+     * @protected
+     */
+    protected constructor(database: Db, collections: MongoDBConfiguration['collections']);
     // TODO: remove this shim?
-    public constructor(_configurationOrDB: MongoDBConfiguration | Db, collections?: MongoDBConfiguration['collections']);
-    constructor(
+    /**
+     * A collective constructor which supports both of the previous two constructors. This provides an easy way to
+     * override
+     * @param _configurationOrDB either the configuration used to construct the database or the instance to use
+     * @param collections the collections to use if a Db instance is provided
+     * @protected
+     */
+    protected constructor(_configurationOrDB: MongoDBConfiguration | Db, collections?: MongoDBConfiguration['collections']);
+    protected constructor(
         /**
          * The configuration for connecting to the database which will be used to form the URI string and connection
          * settings
@@ -164,15 +189,55 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
         return unbind;
     }
 
+    /**
+     * The function that will actually be called when a create action needs to take place. To avoid doubt that the
+     * details and changelog collection is defined, they are passed in directly. These will be asserted by the parent
+     * functions to ensure that the database is ready
+     * @param create the message requesting the create action
+     * @param details the collection in which the actual details of the object should be stored
+     * @param changelog the collection in which a change trail should be recorded
+     * @protected
+     */
     protected abstract createImpl(create: CREATE, details: Collection, changelog: Collection): Promise<string[]>;
 
+    /**
+     * The function that will actually be called when a delete action needs to take place. To avoid doubt that the
+     * details and changelog collection is defined, they are passed in directly. These will be asserted by the parent
+     * functions to ensure that the database is ready
+     * @param create the message requesting the delete action
+     * @param details the collection in which the actual details of the object should be stored
+     * @param changelog the collection in which a change trail should be recorded
+     * @protected
+     */
     protected abstract deleteImpl(create: DELETE, details: Collection, changelog: Collection): Promise<string[]>;
 
+    /**
+     * The function that will actually be called when an update action needs to take place. To avoid doubt that the
+     * details and changelog collection is defined, they are passed in directly. These will be asserted by the parent
+     * functions to ensure that the database is ready
+     * @param create the message requesting the update action
+     * @param details the collection in which the actual details of the object should be stored
+     * @param changelog the collection in which a change trail should be recorded
+     * @protected
+     */
     protected abstract updateImpl(create: UPDATE, details: Collection, changelog: Collection): Promise<string[]>;
 
+    /**
+     * The function that will actually be called when a query action needs to take place. To avoid doubt that the
+     * details and changelog collection is defined, they are passed in directly. These will be asserted by the parent
+     * functions to ensure that the database is ready
+     * @param create the message requesting the query action
+     * @param details the collection in which the actual details of the object should be stored
+     * @param changelog the collection in which a change trail should be recorded
+     * @protected
+     */
     protected abstract queryImpl(create: READ, details: Collection, changelog: Collection): Promise<REPRESENTATION[]>;
 
-
+    /**
+     * Handles a create message by asserting the database exists and is connected and that both collections are
+     * valid. If not it will throw an error, otherwise {@link createImpl} will be called
+     * @param create the create instruction
+     */
     public create = async (create: CREATE): Promise<string[]> => {
         if (!this._connected || !this._database || !this._details || !this._changelog)
             throw new Error('create called before database was ready');
@@ -180,6 +245,11 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
         return this.createImpl(create, this._details, this._changelog);
     }
 
+    /**
+     * Handles a delete message by asserting the database exists and is connected and that both collections are
+     * valid. If not it will throw an error, otherwise {@link deleteImpl} will be called
+     * @param del the delete instruction
+     */
     async delete(del: DELETE): Promise<string[]> {
         if (!this._connected || !this._database || !this._details || !this._changelog)
             throw new Error('create called before database was ready');
@@ -187,6 +257,11 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
         return this.deleteImpl(del, this._details, this._changelog);
     }
 
+    /**
+     * Handles a query message by asserting the database exists and is connected and that both collections are
+     * valid. If not it will throw an error, otherwise {@link queryImpl} will be called
+     * @param query the query instruction
+     */
     async query(query: READ): Promise<REPRESENTATION[]> {
         if (!this._connected || !this._database || !this._details || !this._changelog)
             throw new Error('create called before database was ready');
@@ -194,6 +269,11 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
         return this.queryImpl(query, this._details, this._changelog);
     }
 
+    /**
+     * Handles a update message by asserting the database exists and is connected and that both collections are
+     * valid. If not it will throw an error, otherwise {@link updateImpl} will be called
+     * @param update the update instruction
+     */
     async update(update: UPDATE): Promise<string[]> {
         if (!this._connected || !this._database || !this._details || !this._changelog)
             throw new Error('create called before database was ready');
@@ -201,6 +281,15 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
         return this.updateImpl(update, this._details, this._changelog);
     }
 
+    /**
+     * Log a message to the changelog. This is a fail-fast-and-fail-silently function so if the changelog is not defined
+     * it will just return without providing any error. Otherwise it will insert the ID, action and if provided any
+     * additional properties. The timestamp is also included set to the current date as provided via {@link Date.now()}
+     * @param id the id of the entity which has been changed
+     * @param action the action which occurred on the entity
+     * @param additional and additional properties which should be added to the change request
+     * @protected
+     */
     protected async log(id: string, action: string, additional: Record<string, any> = {}) {
         if (!this._changelog) return;
 
@@ -215,37 +304,5 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
             console.warn('Failed to save changelog');
         }
     }
-
-    protected defaultDelete = async (del: { id: string }): Promise<string[]> => {
-        if (!this._connected || !this._database || !this._details || !this._changelog)
-            throw new Error('create called before database was ready');
-
-        const { id } = del;
-        if (!ObjectId.isValid(id)) {
-            throw new Error('invalid object ID');
-        }
-
-        const objectID = ObjectId.createFromHexString(id);
-        const query = {
-            _id: objectID,
-        };
-
-        __.debug('executing delete query', {
-            query,
-        });
-
-        // TODO: validating the incoming ID
-        const result = await this._details
-            .deleteOne(query);
-
-        if (result.result.ok !== 1 || result.deletedCount !== 1) {
-            throw new Error('failed to delete');
-        }
-
-        await this.log(id, 'deleted');
-
-        return [id];
-    }
-
 
 }
