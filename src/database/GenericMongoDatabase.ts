@@ -2,6 +2,7 @@ import { DatabaseEvents, GenericDatabase } from "./GenericDatabase";
 import { createNanoEvents, Unsubscribe } from "nanoevents";
 import { Collection, Db, MongoClient, MongoClientOptions, ObjectId } from "mongodb";
 import winston from "winston";
+import { tryApplyTrait } from "../healthcheck/Healthcheck";
 
 const __ = winston.child({ label: __filename });
 
@@ -88,10 +89,18 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
                     ...(this._configuration.settings ? this._configuration.settings : {}),
                     useNewUrlParser: true,
                     useUnifiedTopology: true,
+                    reconnectInterval: 60000,
+                    reconnectTries: 100,
                 } as MongoClientOptions,
             ).then((client) => {
                 this._client = client;
                 this._database = client.db(conf.database);
+
+                this._database.on('close', () => tryApplyTrait('db.status', 'disconnected'));
+                this._database.on('disconnect', () => tryApplyTrait('db.status', 'disconnected'));
+                this._database.on('reconnect', () => tryApplyTrait('db.status', 'connected'));
+                this._database.on('connect', () => tryApplyTrait('db.status', 'connected'));
+                tryApplyTrait('db.status', 'connected');
 
                 this._details = this._database.collection(conf.collections.details);
                 this._changelog = this._database.collection(conf.collections.changelog);
@@ -108,6 +117,12 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
             __.debug('creating database using an existing database connection', { collections });
             // If collections is defined then we need the second constructor where the first param is a db
             this._database = db;
+
+            this._database.on('close', () => tryApplyTrait('db.status', 'disconnected'));
+            this._database.on('disconnect', () => tryApplyTrait('db.status', 'disconnected'));
+            this._database.on('reconnect', () => tryApplyTrait('db.status', 'connected'));
+            this._database.on('connect', () => tryApplyTrait('db.status', 'connected'));
+            tryApplyTrait('db.status', 'connected');
 
             this._details = db.collection(collections.details);
             this._changelog = db.collection(collections.changelog);
@@ -199,44 +214,6 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
         } catch (e) {
             console.warn('Failed to save changelog');
         }
-    }
-
-    protected defaultUpdate = async (update: { [key: string]: any, id: string }): Promise<string[]> => {
-        if (!this._connected || !this._database || !this._details || !this._changelog)
-            throw new Error('create called before database was ready');
-
-        const { msg_intention, msg_id, status, id, ...document } = update;
-
-        if (!ObjectId.isValid(id)) {
-            throw new Error('invalid object ID');
-        }
-
-        const objectID = ObjectId.createFromHexString(id);
-        const query = {
-            _id: objectID,
-        };
-        const actions = {
-            $set: document,
-        };
-
-        __.debug('executing update query', {
-            query,
-            actions,
-        });
-
-        const result = await this._details
-            .updateOne(
-                query,
-                actions,
-            );
-
-        if (result.result.ok !== 1) {
-            throw new Error('failed to delete');
-        }
-
-        await this.log(id, 'updated', document);
-
-        return [id];
     }
 
     protected defaultDelete = async (del: { id: string }): Promise<string[]> => {
