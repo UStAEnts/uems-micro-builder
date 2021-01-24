@@ -171,6 +171,10 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
      * @protected
      */
     protected deleteImpl(remove: DeleteCommentMessage, details: Collection, changelog: Collection): Promise<string[]> {
+        if (!ObjectId.isValid(remove.id)) {
+            throw new Error('invalid object id');
+        }
+
         return genericDelete<DatabaseComment>({
             _id: new ObjectId(remove.id),
             assetType: {

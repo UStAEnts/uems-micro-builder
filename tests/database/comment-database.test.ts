@@ -106,7 +106,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_id: 0,
                 status: 0,
                 id: '600de594349464f6f5a5fe30'
-            })).rejects.toThrowError(/failed/ig);
+            })).rejects.toThrowError(/invalid entity/ig);
 
             const results = await db.collection('details').find().toArray();
             expect(results).toHaveLength(1);
