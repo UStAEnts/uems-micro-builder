@@ -48,6 +48,20 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
     constructor(assetType: string[], _configurationOrDB: MongoDBConfiguration | Db, collections?: MongoDBConfiguration['collections']) {
         super(_configurationOrDB, collections);
         this._assetType = assetType;
+
+
+        const register = (details: Collection) => {
+            void details.createIndex({ body: 'text' });
+        };
+
+        if (this._details) {
+            register(this._details);
+        } else {
+            this.once('ready', () => {
+                if (!this._details) throw new Error('Details db was not initialised on ready');
+                register(this._details);
+            });
+        }
     }
 
     protected async createImpl(create: CreateCommentMessage, details: Collection, changelog: Collection): Promise<string[]> {
@@ -77,7 +91,7 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
     }
 
     protected deleteImpl(remove: DeleteCommentMessage, details: Collection, changelog: Collection): Promise<string[]> {
-        return super.defaultDelete(remove);
+        return this.defaultDelete(remove);
     }
 
     protected async queryImpl(query: ReadCommentMessage, details: Collection, changelog: Collection): Promise<ShallowInternalComment[]> {
@@ -127,7 +141,7 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
         }
         if (manipulations.attendedBy) {
             query.$set.requiredAttention = false;
-            query.$set.attendedBy = null;
+            query.$set.attendedBy = manipulations.attendedBy;
             query.$set.attendedAt = Date.now();
         }
         if (manipulations.body) {
