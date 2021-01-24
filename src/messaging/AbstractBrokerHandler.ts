@@ -13,6 +13,9 @@ export type MessagingConfiguration = {
 const __ = winston.child({ label: __filename });
 const _a = winston.child({ label: __filename + '.amqplib' });
 
+let backoffTime = 5000;
+let maximumBackoffTime = 120000;
+
 export type ConnectFunction = (url: string | Options.Connect, socketOptions?: any) => Promise<Connection>;
 export type DataValidator = (message: any) => boolean | Promise<boolean> | PromiseLike<boolean>;
 
@@ -57,9 +60,17 @@ export abstract class AbstractBrokerHandler {
          * @private
          */
         private _outgoingValidator: DataValidator,
-        connectionMethod?: ConnectFunction,
+        /**
+         * The function used to connect to the amqplib server. This will be used on reconnect
+         * @private
+         */
+        private connectionMethod?: ConnectFunction,
     ) {
-        (connectionMethod ?? connect)(_configuration.options).then((connection) => {
+        void this.connect();
+    }
+
+    private async connect() {
+        (this.connectionMethod ?? connect)(this._configuration.options).then((connection) => {
             this._connection = connection;
             return this.setupConnection();
         }).catch((err: unknown) => {
@@ -77,6 +88,8 @@ export abstract class AbstractBrokerHandler {
 
                 void this.error(new Error('Unknown error on amqplib connection reject'));
             }
+
+            this.connectionErrorHandler(err as Error);
         });
     }
 
@@ -86,6 +99,12 @@ export abstract class AbstractBrokerHandler {
             this._waitingForReady.push(x);
         }
     };
+
+    public asyncOnReady() {
+        return new Promise<void>((resolve) => {
+            this.onReady(resolve);
+        });
+    }
 
     /**
      * Logs the error submitted on the amqplib logger and outputs special messages in the case of a connection closing
@@ -99,6 +118,10 @@ export abstract class AbstractBrokerHandler {
         if (err.message === 'Connection closing') {
             _a.warn('connection closing message received, this should be handled by the close handler');
         }
+
+        _a.warn(`Trying to reconnect in ${backoffTime}ms`);
+        setTimeout(this.connect, Math.min(backoffTime, maximumBackoffTime));
+        backoffTime *= 1.2;
 
         void this.error(err);
     };
