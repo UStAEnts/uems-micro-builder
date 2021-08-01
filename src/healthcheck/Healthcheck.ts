@@ -6,7 +6,7 @@ class Healthcheck {
      * The default port that this server will run on if the port is not defined
      * @private
      */
-    private readonly DEFAULT_PORT = process.env.UEMS_HEALTHCHECK ?? 7777;
+    private readonly DEFAULT_PORT = process.env.UEMS_HEALTHCHECK ? Number(process.env.UEMS_HEALTHCHECK) : 7777;
 
     /**
      * The webserver that this healthcheck endpoint is running on. This will only be defined if the server has been
