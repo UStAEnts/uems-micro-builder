@@ -70,7 +70,7 @@ export abstract class AbstractBrokerHandler {
     }
 
     private async connect() {
-        (this.connectionMethod ?? connect)(this._configuration.options).then((connection) => {
+        ((this.connectionMethod ?? connect) as ConnectFunction)(this._configuration.options).then((connection: Connection) => {
             this._connection = connection;
             return this.setupConnection();
         }).catch((err: unknown) => {
