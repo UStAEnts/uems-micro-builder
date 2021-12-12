@@ -13,7 +13,7 @@ export function genericEntityConversion<T,
 
     for (const [inKey, outKey] of Object.entries(mappings) as [K_IN, K_OUT][]) {
         if (objectID !== undefined && objectID === inKey && entity[inKey] !== undefined) {
-            output[outKey] = (entity[inKey] as unknown as ObjectId).toHexString();
+            output[outKey] = (entity[inKey] as unknown as ObjectId).toHexString() as any;
         } else {
             if (entity[inKey] !== undefined) output[outKey] = entity[inKey];
         }
@@ -56,7 +56,7 @@ export async function genericCreate<T, V>(
 
     try {
         result = await details.insertOne(mapper(entity));
-    } catch (e) {
+    } catch (e: any) {
         if (e.code === 11000) {
             if (duplicateHandler) await duplicateHandler(e);
 
@@ -112,7 +112,7 @@ export async function genericUpdate<T extends { id: string }, K extends keyof T>
     let result;
     try {
         result = await details.updateOne(filter, changes);
-    } catch (e) {
+    } catch (e:any) {
         if (e.code === 11000) {
             if (duplicateHandler) await duplicateHandler(e);
 
