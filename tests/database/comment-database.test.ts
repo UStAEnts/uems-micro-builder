@@ -22,7 +22,7 @@ describe('GenericCommentDatabase.ts', () => {
         defaultBeforeEach([{
             _id: new ObjectId('600de594349464f6f5a5fe05'),
             requiredAttention: false,
-            category: 'category',
+            topic: 'topic',
             poster: 'posterID',
             attendedAt: null,
             attendedBy: null,
@@ -45,6 +45,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_id: 0,
                 msg_intention: 'CREATE',
                 posterID: 'sometihng',
+                userID: 'anonymous',
                 assetType: 'invalid',
                 assetID: 'assetID',
                 body: 'something',
@@ -57,6 +58,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_id: 0,
                 msg_intention: 'CREATE',
                 posterID: 'sometihng',
+                userID: 'anonymous',
                 assetType: 'validAsset',
                 assetID: 'assetID',
                 body: 'something',
@@ -81,6 +83,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_intention: 'DELETE',
                 msg_id: 0,
                 status: 0,
+                userID: 'anonymous',
                 id: '600de594349464f6f5a5fe05'
             })).resolves.toEqual(['600de594349464f6f5a5fe05'])
 
@@ -93,6 +96,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_intention: 'DELETE',
                 msg_id: 0,
                 status: 0,
+                userID: 'anonymous',
                 id: '("&£$(*£&^%(*&£"'
             })).rejects.toThrowError(/object ID/ig);
 
@@ -105,6 +109,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_intention: 'DELETE',
                 msg_id: 0,
                 status: 0,
+                userID: 'anonymous',
                 id: '600de594349464f6f5a5fe30'
             })).rejects.toThrowError(/invalid entity/ig);
 
@@ -121,7 +126,8 @@ describe('GenericCommentDatabase.ts', () => {
                 status: 0,
                 msg_id: 0,
                 msg_intention: 'READ',
-                category: 'category',
+                userID: 'anonymous',
+                topic: 'topic',
                 posterID: 'posterID',
                 assetID: 'assetID',
                 body: 'body',
@@ -133,7 +139,8 @@ describe('GenericCommentDatabase.ts', () => {
                 status: 0,
                 msg_id: 0,
                 msg_intention: 'READ',
-                category: 'category invalid',
+                topic: 'topic invalid',
+                userID: 'anonymous',
                 posterID: 'posterID',
                 assetID: 'assetID',
                 body: 'body',
@@ -145,7 +152,8 @@ describe('GenericCommentDatabase.ts', () => {
                 status: 0,
                 msg_id: 0,
                 msg_intention: 'READ',
-                category: 'category',
+                topic: 'topic',
+                userID: 'anonymous',
                 posterID: 'posterID',
                 assetID: 'assetID',
                 body: 'body',
@@ -159,7 +167,7 @@ describe('GenericCommentDatabase.ts', () => {
                 'attendedBy',
                 'attendedDate',
                 'poster',
-                'category',
+                'topic',
                 'requiresAttention',
                 'posted',
                 'body',
@@ -188,7 +196,8 @@ describe('GenericCommentDatabase.ts', () => {
                 status: 0,
                 msg_id: 0,
                 msg_intention: 'READ',
-                category: 'category',
+                topic: 'topic',
+                userID: 'anonymous',
                 posterID: 'posterID',
                 assetID: 'assetID',
             });
@@ -201,7 +210,7 @@ describe('GenericCommentDatabase.ts', () => {
                 'attendedBy',
                 'attendedDate',
                 'poster',
-                'category',
+                'topic',
                 'requiresAttention',
                 'posted',
                 'body',
@@ -213,6 +222,7 @@ describe('GenericCommentDatabase.ts', () => {
                 status: 0,
                 msg_intention: 'UPDATE',
                 msg_id: 0,
+                userID: 'anonymous',
                 id: '600de594349464f6f5a5fe05',
                 requiresAttention: true,
             })
@@ -224,7 +234,8 @@ describe('GenericCommentDatabase.ts', () => {
                 status: 0,
                 msg_id: 0,
                 msg_intention: 'READ',
-                category: 'category',
+                userID: 'anonymous',
+                topic: 'topic',
                 posterID: 'posterID',
                 assetID: 'assetID',
             });
@@ -238,6 +249,7 @@ describe('GenericCommentDatabase.ts', () => {
         it('should support updating attended by', async () => {
             const update = await commentDB.update({
                 status: 0,
+                userID: 'anonymous',
                 msg_intention: 'UPDATE',
                 msg_id: 0,
                 id: '600de594349464f6f5a5fe05',
@@ -250,8 +262,9 @@ describe('GenericCommentDatabase.ts', () => {
             const data = await commentDB.query({
                 status: 0,
                 msg_id: 0,
+                userID: 'anonymous',
                 msg_intention: 'READ',
-                category: 'category',
+                topic: 'topic',
                 posterID: 'posterID',
                 assetID: 'assetID',
             });
@@ -266,6 +279,7 @@ describe('GenericCommentDatabase.ts', () => {
             const update = await commentDB.update({
                 status: 0,
                 msg_intention: 'UPDATE',
+                userID: 'anonymous',
                 msg_id: 0,
                 id: '600de594349464f6f5a5fe05',
                 body: 'new body for test',
@@ -278,7 +292,8 @@ describe('GenericCommentDatabase.ts', () => {
                 status: 0,
                 msg_id: 0,
                 msg_intention: 'READ',
-                category: 'category',
+                userID: 'anonymous',
+                topic: 'topic',
                 posterID: 'posterID',
                 assetID: 'assetID',
             });

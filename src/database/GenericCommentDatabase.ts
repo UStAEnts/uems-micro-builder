@@ -37,7 +37,7 @@ export type DatabaseComment = {
     /**
      * The optional category of this comment
      */
-    category: string | null,
+    topic: string | null,
     /**
      * If this comment requires attention from another user
      */
@@ -74,7 +74,7 @@ const transmute = (db: DatabaseComment): ShallowInternalComment => {
         attendedBy: db.attendedBy ?? undefined,
         attendedDate: db.attendedAt ?? undefined,
         poster: db.poster,
-        category: db.category ?? undefined,
+        topic: db.topic ?? undefined,
         requiresAttention: db.requiredAttention,
         posted: db.posted,
         body: db.body,
@@ -143,7 +143,7 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
 
         const entity: CreateDatabaseComment = {
             requiredAttention: create.requiresAttention ?? false,
-            category: create.category ?? null,
+            topic: create.topic ?? null,
             poster: create.posterID,
             attendedAt: null,
             attendedBy: null,
@@ -205,7 +205,7 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
         }
 
         if (query.requiresAttention) exec.requiredAttention = true;
-        if (query.category) exec.category = query.category;
+        if (query.topic) exec.topic = query.topic;
         if (query.assetID) exec.assetID = query.assetID;
         if (query.posterID) exec.poster = query.posterID;
         if (query.attended) exec.attendedBy = { $exists: true, };
@@ -241,7 +241,7 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
             $set: {},
         };
 
-        if (manipulations.category) query.$set.category = manipulations.category;
+        if (manipulations.topic) query.$set.topic = manipulations.topic;
         if (manipulations.requiresAttention !== undefined) {
             if (manipulations.requiresAttention) {
                 query.$set.requiredAttention = true;
