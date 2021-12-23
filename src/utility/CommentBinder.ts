@@ -54,6 +54,7 @@ async function execute(
         send({
             msg_intention: message.msg_intention,
             msg_id: message.msg_id,
+            userID: message.userID,
             status,
             result: result as unknown as InternalComment[],
         });
@@ -61,6 +62,7 @@ async function execute(
         send({
             msg_intention: message.msg_intention,
             msg_id: message.msg_id,
+            userID: message.userID,
             status,
             result: result as string[],
         });
