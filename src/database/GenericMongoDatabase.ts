@@ -298,7 +298,7 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
                 ...additional,
                 id,
                 action,
-                timestamp: Date.now(),
+                timestamp: Math.floor(Date.now() / 1000),
             });
         } catch (e) {
             console.warn('Failed to save changelog');

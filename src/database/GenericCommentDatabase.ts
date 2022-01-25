@@ -149,7 +149,7 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
             attendedBy: null,
             assetID: create.assetID,
             assetType: create.assetType,
-            posted: Date.now(),
+            posted: Math.floor(Date.now() / 1000),
             body: create.body,
         }
 
@@ -254,7 +254,7 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
         if (manipulations.attendedBy) {
             query.$set.requiredAttention = false;
             query.$set.attendedBy = manipulations.attendedBy;
-            query.$set.attendedAt = Date.now();
+            query.$set.attendedAt = Math.floor(Date.now() / 1000);
         }
         if (manipulations.body) {
             query.$set.body = manipulations.body;
