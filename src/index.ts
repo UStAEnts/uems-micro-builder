@@ -11,3 +11,6 @@ export * from './messaging/GenericRabbitNetworkHandler';
 
 export * from './utility/CommentBinder';
 export * from './utility/GenericDatabaseFunctions';
+
+export * from './logging/Log';
+export * from './logging/AMQPTransport';
