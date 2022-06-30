@@ -33,15 +33,20 @@
   "dependencies": {
     "@uems/uemscommlib": "0.1.0-beta.54",
     "amqplib": "^0.6.0",
+    "app-root-path": "^3.0.0",
     "dayjs": "^1.11.2",
     "nanoevents": "^5.1.10",
-    "winston": "^3.3.3"
+    "winston": "^3.3.3",
+    "zod": "^3.17.3"
   },
   "optionalDependencies": {
     "mongodb": "^3.6.3"
   },
   "bin": {
     "healthcheck": "./bin/healthcheck.js"
+  },
+  "exports": {
+    ".": "./build/"
   },
   "types": "build/index.d.ts"
 }
