@@ -31,7 +31,7 @@ export abstract class AbstractBrokerHandler {
      * The open connection to the rabbit mq server
      * @private
      */
-    protected _connection?: Connection;
+    private _connection?: Connection;
 
     /**
      * The channel on which the responses should be made
@@ -91,6 +91,10 @@ export abstract class AbstractBrokerHandler {
 
             this.connectionErrorHandler(err as Error);
         });
+    }
+
+    get connection(): Connection|undefined {
+        return this._connection;
     }
 
     public onReady = (x: ((...args: any) => void)): void => {
