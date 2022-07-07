@@ -2,7 +2,7 @@ import * as zod from 'zod';
 import path from "path";
 import * as fs from "fs/promises";
 import log, {configure} from "../logging/Log";
-import {GenericMongoDatabase} from "../database/GenericMongoDatabase";
+import {bindClientToHealthcheck, GenericMongoDatabase} from "../database/GenericMongoDatabase";
 import {MongoClient, MongoClientOptions} from "mongodb";
 import {tryApplyTrait} from "../healthcheck/Healthcheck";
 import {RabbitNetworkHandler} from "../messaging/GenericRabbitNetworkHandler";
@@ -11,9 +11,9 @@ import {Options} from "amqplib";
 import AMQPTransport from "../logging/AMQPTransport";
 import broker = Configuration.broker;
 
-const appRoot = require('app-root-path');
+const appRoot = require('app-root-path').toString();
 
-const DefaultDatabaseValidator = zod.object({
+export const DefaultDatabaseValidator = zod.object({
     username: zod.string(),
     password: zod.string(),
     uri: zod.string(),
@@ -21,15 +21,15 @@ const DefaultDatabaseValidator = zod.object({
     server: zod.string(),
     settings: zod.any().optional(),
 });
-type DefaultDatabaseConfiguration = zod.infer<typeof DefaultDatabaseValidator>;
+export type DefaultDatabaseConfiguration = zod.infer<typeof DefaultDatabaseValidator>;
 
 export type BrokerShorthandType = {
-    generic: never,
-    create: never,
-    remove: never,
-    read: never,
-    update: never,
-    response: never,
+    generic: any,
+    create: any,
+    remove: any,
+    read: any,
+    update: any,
+    response: any,
 };
 
 export const RabbitMQConfigurationValidator = zod.object({
@@ -49,7 +49,7 @@ export const RabbitMQConfigurationValidator = zod.object({
     inbox: zod.string(),
     topics: zod.array(zod.string()),
 })
-type RabbitMQConfiguration = zod.infer<typeof RabbitMQConfigurationValidator>;
+export type RabbitMQConfiguration = zod.infer<typeof RabbitMQConfigurationValidator>;
 
 export namespace Configuration {
 
@@ -76,6 +76,7 @@ export namespace Configuration {
     ): Promise<RabbitNetworkHandler<M['generic'], M['create'], M['remove'], M['read'], M['update'], M['response']>> {
         let configurationParse = RabbitMQConfigurationValidator.safeParse(configuration[key]);
         if (!configurationParse.success) {
+            tryApplyTrait('rabbitmq', 'failed');
             log.auto.system.error('Failed to parse the rabbit mq configuration from config as it did not match the given schema');
             log.auto.system.error(`  Configuration Key = ${key}`);
             configurationParse.error.format()._errors.forEach((error, index) => {
@@ -105,6 +106,7 @@ export namespace Configuration {
                 ...config,
                 options: {...config.options, password: config.options.password ? '[REDACTED]' : undefined}
             };
+            tryApplyTrait('rabbitmq', 'failed');
             log.auto.system.error('Failed to connect to the RabbitMQ broker');
             log.auto.system.error(`  Configuration = ${JSON.stringify(converted)}`);
             log.auto.system.error(`  Raised Error = ${err.message}`, err);
@@ -117,6 +119,7 @@ export namespace Configuration {
             resolve?.(messenger);
         });
 
+        tryApplyTrait('rabbitmq', 'healthy');
         return promise;
     }
 
@@ -155,20 +158,9 @@ export namespace Configuration {
                     ...(config.settings ? config.settings : {}),
                     useNewUrlParser: true,
                     useUnifiedTopology: true,
-                    reconnectInterval: 60000,
-                    reconnectTries: 100,
                 } as MongoClientOptions,
             ).then((client) => {
-                client.on('close', () => tryApplyTrait('database.status', 'unhealthy'));
-                client.on('serverHeartbeatSucceeded', () => tryApplyTrait('database.status', 'healthy'));
-                client.on('serverHeartbeatFailed', () => tryApplyTrait('database.status', 'unhealthy'));
-                client.on('connectionClosed', () => tryApplyTrait('database.status', 'unhealthy'));
-                client.on('serverClosed', () => tryApplyTrait('database.status', 'unhealthy'));
-                client.on('error', () => tryApplyTrait('database.status', 'unhealthy'));
-                client.on('timeout', () => tryApplyTrait('database.status', 'unhealthy'));
-                client.on('open', () => tryApplyTrait('database.status', 'healthy'));
-                tryApplyTrait('database.status', 'healthy');
-
+                bindClientToHealthcheck(client);
                 return client;
             })
 
@@ -199,7 +191,7 @@ export namespace Configuration {
      * @param module the name of this module to produce the environment variable
      * @param schema the schema against which the config should be validated
      */
-    export async function load<T extends zod.ZodSchema>(
+    export async function load<T extends zod.ZodTypeAny>(
         module: string,
         schema: T,
     ): Promise<zod.infer<T>> {
@@ -211,6 +203,7 @@ export namespace Configuration {
         try {
             configurationRaw = await fs.readFile(configLocation, {encoding: 'utf-8'});
         } catch (e: any) {
+            tryApplyTrait('config', 'failed');
             log.auto.system.fatal('Failed to load the configuration from disk');
             log.auto.system.fatal(`  Environment Variable = ${environmentVariable}`);
             log.auto.system.fatal(`  Fallback Location = ${fallbackLocation}`);
@@ -223,6 +216,7 @@ export namespace Configuration {
         try {
             configurationJSON = JSON.parse(configurationRaw);
         } catch (e: any) {
+            tryApplyTrait('config', 'failed');
             log.auto.system.fatal('Failed to parse the configuration from disk as the JSON failed to parse');
             log.auto.system.fatal(`  Reported Error = ${e.message}`, e);
             throw e;
@@ -230,6 +224,7 @@ export namespace Configuration {
 
         let configurationParse = schema.safeParse(configurationJSON);
         if (!configurationParse.success) {
+            tryApplyTrait('config', 'failed');
             log.auto.system.fatal('Failed to parse the configuration from disk as it did not match the given schema');
             configurationParse.error.format()._errors.forEach((error, index) => {
                 log.auto.system.fatal(`  [${index}]: ${error}`);
@@ -237,11 +232,12 @@ export namespace Configuration {
             throw configurationParse.error;
         }
 
+        tryApplyTrait('config', 'loaded');
         return configurationParse.data;
     }
 }
 
-export default async function bootstrap<T extends zod.ZodSchema, M extends BrokerShorthandType>(
+export default async function bootstrap<T extends zod.ZodTypeAny, M extends BrokerShorthandType>(
     module: string,
     schema: T,
     database: string,
