@@ -5,7 +5,7 @@ specifiers:
   '@types/jest': ^26.0.20
   '@types/mongodb': ^3.6.3
   '@types/node': ^14.14.17
-  '@uems/uemscommlib': 0.1.0-beta.54
+  '@uems/uemscommlib': 2.0.0-beta.10
   amqplib: ^0.6.0
   app-root-path: ^3.0.0
   axios: ^0.21.1
@@ -21,7 +21,7 @@ specifiers:
   zod: ^3.17.3
 
 dependencies:
-  '@uems/uemscommlib': 0.1.0-beta.54
+  '@uems/uemscommlib': 2.0.0-beta.10
   amqplib: 0.6.0
   app-root-path: 3.0.0
   dayjs: 1.11.2
@@ -678,10 +678,11 @@ packages:
       '@types/yargs-parser': 20.2.0
     dev: true
 
-  /@uems/uemscommlib/0.1.0-beta.54:
-    resolution: {integrity: sha512-ThHR4Ir+y1IvVhIg2vzGyv1zXpV4ZU7xXhBhDcCEdCfmJ6xibW4i2hAXnJyLlhFKdFkWwIwQJcRSkuCAQOZqaQ==}
+  /@uems/uemscommlib/2.0.0-beta.10:
+    resolution: {integrity: sha512-o4p0LQOKzmTQDZLD3/W47R828FsKiJ4hJQ3FhnviuBXnYz8S8167cYtk9kfej8xBdk41HujXag9bO0s66d4Ehg==}
     dependencies:
       ajv: 6.12.6
+      zod: 3.17.3
     dev: false
 
   /abab/2.0.5:

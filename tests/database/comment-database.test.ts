@@ -44,11 +44,12 @@ describe('GenericCommentDatabase.ts', () => {
                 status: 0,
                 msg_id: 0,
                 msg_intention: 'CREATE',
-                posterID: 'sometihng',
+                poster: 'sometihng',
                 userID: 'anonymous',
                 assetType: 'invalid',
                 assetID: 'assetID',
                 body: 'something',
+                posted: Math.floor(Date.now() / 1000),
             })).rejects.toThrowError('Invalid asset type');
         });
 
@@ -57,11 +58,12 @@ describe('GenericCommentDatabase.ts', () => {
                 status: 0,
                 msg_id: 0,
                 msg_intention: 'CREATE',
-                posterID: 'sometihng',
+                poster: 'sometihng',
                 userID: 'anonymous',
                 assetType: 'validAsset',
                 assetID: 'assetID',
                 body: 'something',
+                posted: Math.floor(Date.now() / 1000),
             });
 
             expect(result).toHaveLength(1);
@@ -128,7 +130,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_intention: 'READ',
                 userID: 'anonymous',
                 topic: 'topic',
-                posterID: 'posterID',
+                poster: 'posterID',
                 assetID: 'assetID',
                 body: 'body',
             })).resolves.toHaveLength(1);
@@ -141,7 +143,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_intention: 'READ',
                 topic: 'topic invalid',
                 userID: 'anonymous',
-                posterID: 'posterID',
+                poster: 'posterID',
                 assetID: 'assetID',
                 body: 'body',
             })).resolves.toHaveLength(0);
@@ -154,7 +156,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_intention: 'READ',
                 topic: 'topic',
                 userID: 'anonymous',
-                posterID: 'posterID',
+                poster: 'posterID',
                 assetID: 'assetID',
                 body: 'body',
             });
@@ -198,7 +200,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_intention: 'READ',
                 topic: 'topic',
                 userID: 'anonymous',
-                posterID: 'posterID',
+                poster: 'posterID',
                 assetID: 'assetID',
             });
 
@@ -236,7 +238,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_intention: 'READ',
                 userID: 'anonymous',
                 topic: 'topic',
-                posterID: 'posterID',
+                poster: 'posterID',
                 assetID: 'assetID',
             });
 
@@ -265,7 +267,7 @@ describe('GenericCommentDatabase.ts', () => {
                 userID: 'anonymous',
                 msg_intention: 'READ',
                 topic: 'topic',
-                posterID: 'posterID',
+                poster: 'posterID',
                 assetID: 'assetID',
             });
 
@@ -294,7 +296,7 @@ describe('GenericCommentDatabase.ts', () => {
                 msg_intention: 'READ',
                 userID: 'anonymous',
                 topic: 'topic',
-                posterID: 'posterID',
+                poster: 'posterID',
                 assetID: 'assetID',
             });
 
