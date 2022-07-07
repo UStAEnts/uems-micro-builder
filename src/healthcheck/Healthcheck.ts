@@ -1,4 +1,9 @@
-import { IncomingMessage, Server, ServerResponse } from "http";
+import {IncomingMessage, Server, ServerResponse} from "http";
+import {ObjectUtilities} from "@uems/uemscommlib";
+import has = ObjectUtilities.has;
+import log from "../logging/Log";
+
+type StatusOption = 'healthy' | 'unhealthy-serving' | 'unhealthy';
 
 class Healthcheck {
 
@@ -35,7 +40,14 @@ class Healthcheck {
      * A validator to be run against the defined traits. This should return whether the
      * @private
      */
-    private readonly _validator: (traits: Healthcheck['_activeTraits']) => 'healthy' | 'unhealthy-serving' | 'unhealthy';
+    private readonly _validator: (traits: Healthcheck['_activeTraits']) => StatusOption;
+
+    /**
+     * If the state of the validator shoud be logged to stdout - this can cause a busy output so should be used for
+     * debugging more than anything
+     * @private
+     */
+    private readonly _log: boolean;
 
     /**
      * Creates a new healthcheck server but doesn't make it listen.
@@ -44,12 +56,14 @@ class Healthcheck {
      * @param validator a validator to be applied to the traits, should return the current state of the server based
      * on the set of current traits
      * @param port the port the server should be started on. Defaults to {@link DEFAULT_PORT} if not specified
+     * @param log log every update to the healthcheck system
      */
-    constructor(declaredTraits: string[], validator: Healthcheck['_validator'], port?: number) {
+    constructor(declaredTraits: string[], validator: Healthcheck['_validator'], port?: number, log?: boolean) {
         this._port = port ?? this.DEFAULT_PORT;
         this._declaredTraits = declaredTraits;
         this._validator = validator;
         this._server = new Server(this.handle.bind(this));
+        this._log = log ?? false;
     }
 
     /**
@@ -59,7 +73,7 @@ class Healthcheck {
         if (this._server.listening) throw new Error('healthcheck is already listening');
         return new Promise<void>((resolve) => {
             this._server.listen(this._port, () => {
-                console.log(`listening on ${this._port}`);
+                log.auto.system.info(`\u{1F5A4} healthcheck enabled on :${this._port}`)
                 resolve();
             });
         });
@@ -84,6 +98,7 @@ class Healthcheck {
      * @param value the value of this trait
      */
     public trait(key: string, value: any) {
+        if (this._log) log.system.trace('mb:Healthcheck:trait', `trait [${key}] has updated status to [${value}]`);
         this._activeTraits[key] = value;
     }
 
@@ -93,7 +108,7 @@ class Healthcheck {
      * @private
      */
     private buildResponse() {
-        const clone = { ...this._activeTraits };
+        const clone = {...this._activeTraits};
         this._declaredTraits
             .filter((e) => !clone.hasOwnProperty(e))
             .forEach((key) => clone[key] = "_undefined");
@@ -120,6 +135,7 @@ class Healthcheck {
         try {
             status = this._validator(this._activeTraits);
         } catch (e) {
+            if (this._log) log.system.trace('mb:Healthcheck:handle', 'Validator failed: ', e);
             status = 'unhealthy';
         }
 
@@ -149,14 +165,93 @@ let activeHealthcheck: Healthcheck | undefined = undefined;
  * @param traits the set of traits to define on the health check
  * @param validator the validator which should be applied to the response before sending to determine the server status
  * @param port the port on which the server should run
+ * @param log log every update to the healthcheck system
  */
-export async function launchCheck(traits: string[], validator: Healthcheck['_validator'], port?: number) {
+export async function launchCheck(traits: string[], validator: Healthcheck['_validator'], port?: number, log?: boolean) {
     if (activeHealthcheck !== undefined) throw new Error('multiple healthchecks cannot be created');
-    const value = new Healthcheck(traits, validator, port);
+    const value = new Healthcheck(traits, validator, port, log);
     await value.launch();
 
     activeHealthcheck = value;
     return value;
+}
+
+export function health(
+    traits: string[],
+    present: string[],
+    requiredValues: Record<string, any>,
+    evaluate: Record<string, ((value: any) => StatusOption)>,
+    thresholds: { condition: string[], over: string[], threshold: number, result: 'unhealthy' | 'unhealthy-serving' }[],
+    port?: number,
+    trace?: boolean,
+) {
+    const reduce = (a: StatusOption, b: StatusOption): StatusOption => {
+        if (a === 'unhealthy' || b === 'unhealthy') return 'unhealthy';
+        if (a === 'unhealthy-serving' || b === 'unhealthy-serving') return 'unhealthy-serving';
+        return 'healthy';
+    }
+
+    const _log = trace
+        ? log.system.trace
+        : () => undefined;
+
+    return {
+        traits,
+        validator: (status: Record<string, any>) => {
+            const p: StatusOption = present.length === 0 ? 'healthy' : present.map((e) => {
+                const contains = has(status, e);
+                if (!contains) _log('mb:Healthcheck:health', `unhealthy: value [${e}] is missing`);
+                return contains;
+            })
+                .reduce((a, b) => a && b, true) ? 'healthy' : 'unhealthy';
+
+            const required: StatusOption = Object.entries(requiredValues).map(([key, value]): 'unhealthy' | 'healthy' => {
+                if (!has(status, key)) {
+                    _log('mb:Healthcheck:health', `unhealthy: value [${key}] is missing`);
+                    return 'unhealthy';
+                }
+                if (status[key] !== value) {
+                    _log('mb:Healthcheck:health', `unhealthy: [${key}] is currently [${status[key]}] but is required to be [${value}]`);
+                    return 'unhealthy';
+                }
+
+                return 'healthy';
+            }).reduce((a, b): StatusOption => {
+                return reduce(a as any, b as any);
+            }, 'healthy' as StatusOption) as StatusOption;
+
+            const evaluated: StatusOption = Object.entries(evaluate).map(([key, value]) => {
+                const result = value(status[key]);
+                if (result === 'unhealthy-serving' || result === 'unhealthy') {
+                    _log('mb:Healthcheck:health', `${result}: [${key}] evaluated`);
+                }
+                return result;
+            })
+                .reduce((a, b) => reduce(a, b), 'healthy');
+
+            const ts: StatusOption = thresholds
+                .map(({condition, over, threshold, result}) => {
+                    const top = condition.map((e) => status[e]).reduce((a, b) => a + b, 0);
+                    const bottom = (over.map((e) => status[e]).reduce((a, b) => a + b, 0) + 0.0);
+
+                    if ((top / bottom) > threshold) {
+                        _log('mb:Healthcheck:health', `${result}: ${top} / ${bottom} > ${threshold}`);
+                        return result;
+                    }
+
+                    return 'healthy';
+                }).reduce((a, b) => reduce(a, b), 'healthy');
+
+            _log('mb:Healthcheck:health', `result`, p, required, evaluated, ts);
+            return reduce(p, reduce(required, reduce(evaluated, ts)));
+        },
+        port,
+        log: trace,
+    };
+}
+
+export async function healthcheck(config: { traits: string[], validator: Healthcheck['_validator'], port?: number, log?: boolean }) {
+    return launchCheck(config.traits, config.validator, config.port, config.log);
 }
 
 /**

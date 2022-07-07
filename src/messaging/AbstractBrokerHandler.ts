@@ -1,6 +1,7 @@
 import { constants } from "http2";
 import { Channel, connect, Connection, ConsumeMessage, Options } from "amqplib";
 import winston from "winston";
+import log from "../logging/Log";
 
 export type MessagingConfiguration = {
     options: Options.Connect,
@@ -9,9 +10,6 @@ export type MessagingConfiguration = {
     inbox: string,
     topics: string[],
 };
-
-const __ = winston.child({ label: __filename });
-const _a = winston.child({ label: __filename + '.amqplib' });
 
 let backoffTime = 5000;
 let maximumBackoffTime = 120000;
@@ -75,13 +73,13 @@ export abstract class AbstractBrokerHandler {
             return this.setupConnection();
         }).catch((err: unknown) => {
             if (err instanceof Error) {
-                __.error('received an error via catch of amqplib connect', {
+                log.system.error('mb:AbstractBrokerHandler:connect', 'received an error via catch of amqplib connect', {
                     error: err,
                 });
 
                 void this.error(err);
             } else {
-                __.error(`received an error via catch of amqplib connect but it did not match an instance of 
+                log.system.error('mb:AbstractBrokerHandler:connect',`received an error via catch of amqplib connect but it did not match an instance of 
                 an error. The error is logged here and an unknown error is being passed to the event handlers`, {
                     error: err,
                 });
@@ -115,15 +113,15 @@ export abstract class AbstractBrokerHandler {
      * @param err the error raised by the connection
      */
     private connectionErrorHandler = (err: Error) => {
-        _a.error('an error was raised by the amqplib connection', {
+        log.system.error('mb:AbstractBrokerHandler:connectionErrorHandler','an error was raised by the amqplib connection', {
             error: err,
         });
 
         if (err.message === 'Connection closing') {
-            _a.warn('connection closing message received, this should be handled by the close handler');
+            log.system.warn('mb:AbstractBrokerHandler:connectionErrorHandler','connection closing message received, this should be handled by the close handler');
         }
 
-        _a.warn(`Trying to reconnect in ${backoffTime}ms`);
+        log.system.warn('mb:AbstractBrokerHandler:connectionErrorHandler',`Trying to reconnect in ${backoffTime}ms`);
         setTimeout(this.connect, Math.min(backoffTime, maximumBackoffTime));
         backoffTime *= 1.2;
 
@@ -136,25 +134,25 @@ export abstract class AbstractBrokerHandler {
      */
     private setupConnection = async () => {
         if (!this._connection) {
-            __.error('setup connection was called with a falsy connection value. This should not happen!');
+            log.system.error('mb:AbstractBrokerHandler:setupConnection','setup connection was called with a falsy connection value. This should not happen!');
             throw new Error('invalid connection parameter');
         }
-        _a.debug('valid connection received, beginning setup and listener attachment');
+        log.system.debug('mb:AbstractBrokerHandler:setupConnection','valid connection received, beginning setup and listener attachment');
 
         this._connection.on('error', this.connectionErrorHandler);
         this._connection.on('close', () => {
             this._connected = false;
-            _a.warn('disconnected from the message broker due to a close event being received on the connection');
+            log.system.warn('mb:AbstractBrokerHandler:setupConnection','disconnected from the message broker due to a close event being received on the connection');
             void this.error(Error('disconnected[close]'));
         });
 
-        _a.debug('event listeners configured');
+        log.system.debug('mb:AbstractBrokerHandler:setupConnection','event listeners configured');
 
         // Ensure that the gateway exchange exists
         this._responseChannel = await this._connection.createChannel();
         await this._responseChannel.assertExchange(this._configuration.gateway, 'direct');
 
-        _a.debug('response exchange created');
+        log.system.debug('mb:AbstractBrokerHandler:setupConnection','response exchange created');
 
         // Ensure the request exchange exists
         const requestChannel = await this._connection.createChannel();
@@ -162,14 +160,14 @@ export abstract class AbstractBrokerHandler {
             durable: false,
         });
 
-        _a.debug('request exchange created');
+        log.system.debug('mb:AbstractBrokerHandler:setupConnection','request exchange created');
 
         // Ensure that the inbox queue exists. It shouldn't be exclusive in the case of multiple microservices
         const inbox = await requestChannel.assertQueue(this._configuration.inbox, {
             exclusive: false,
         });
 
-        _a.debug('inbox created');
+        log.system.debug('mb:AbstractBrokerHandler:setupConnection','inbox created');
 
         // Bind the queue to all messages with the requested topics. This ensures we only answer messages destined for
         // this service. As this is an async function and we could have many topics, we want to wait until all of them
@@ -182,13 +180,13 @@ export abstract class AbstractBrokerHandler {
             )),
         );
 
-        _a.debug(`bound ${this._configuration.topics.length} topics to the inbox queue`);
+        log.system.debug('mb:AbstractBrokerHandler:setupConnection',`bound ${this._configuration.topics.length} topics to the inbox queue`);
 
         await requestChannel.consume(inbox.queue, this.handleIncoming, {
             noAck: true,
         });
 
-        _a.debug('consumer attached, ready to receive');
+        log.system.debug('mb:AbstractBrokerHandler:setupConnection','consumer attached, ready to receive');
 
         this._connected = true;
         this._waitingForReady.forEach((e) => e());
@@ -201,8 +199,8 @@ export abstract class AbstractBrokerHandler {
      */
     private readonly handleIncoming = async (message: ConsumeMessage | null): Promise<void> => {
         if (message === null) {
-            _a.warn('received a null message from the inbox queue. ignoring');
-            _a.warn('this suggests this consumer has been cancelled by RabbitMQ');
+            log.system.warn('mb:AbstractBrokerHandler:handleIncoming','received a null message from the inbox queue. ignoring');
+            log.system.debug('mb:AbstractBrokerHandler:handleIncoming','this suggests this consumer has been cancelled by RabbitMQ');
             return;
         }
 
@@ -212,7 +210,7 @@ export abstract class AbstractBrokerHandler {
         try {
             content = JSON.parse(message.content.toString()) as typeof content;
         } catch (e) {
-            __.error(`received an invalid message payload. an error was raised when attempting to parse the 
+            log.system.error('mb:AbstractBrokerHandler:handleIncoming',`received an invalid message payload. an error was raised when attempting to parse the 
             content as json`, {
                 error: e as unknown,
             });
@@ -220,7 +218,7 @@ export abstract class AbstractBrokerHandler {
         }
 
         if (!await this._incomingValidator(content)) {
-            __.error(`received an invalid message payload. it did not validate against the uemsCommsLib schema 
+            log.system.error('mb:AbstractBrokerHandler:handleIncoming',`received an invalid message payload. it did not validate against the uemsCommsLib schema 
             definitions for incoming messages`, {
                 content,
             });
@@ -228,7 +226,7 @@ export abstract class AbstractBrokerHandler {
         }
 
         const genericErrorHandler = (err: any) => {
-            __.error('other handler failed and rejected', {
+            log.system.debug('mb:AbstractBrokerHandler:error','other handler failed and rejected', {
                 error: err as unknown,
             });
             void this.error(new Error('generic handler rejects'));
@@ -237,23 +235,23 @@ export abstract class AbstractBrokerHandler {
         if (Object.prototype.hasOwnProperty.call(content, 'msg_intention')) {
             switch (content.msg_intention) {
                 case 'CREATE':
-                    __.debug('got a create message');
+                    log.system.debug('mb:AbstractBrokerHandler:handleIncoming','got a create message');
                     Promise.resolve(this.create(content, message.fields.routingKey)).catch(genericErrorHandler);
                     break;
                 case 'UPDATE':
-                    __.debug('got an update message');
+                    log.system.debug('mb:AbstractBrokerHandler:handleIncoming','got an update message');
                     Promise.resolve(this.update(content, message.fields.routingKey)).catch(genericErrorHandler);
                     break;
                 case 'DELETE':
-                    __.debug('got a delete message');
+                    log.system.debug('mb:AbstractBrokerHandler:handleIncoming','got a delete message');
                     Promise.resolve(this.delete(content, message.fields.routingKey)).catch(genericErrorHandler);
                     break;
                 case 'READ':
-                    __.debug('got a query message');
+                    log.system.debug('mb:AbstractBrokerHandler:handleIncoming','got a query message');
                     Promise.resolve(this.read(content, message.fields.routingKey)).catch(genericErrorHandler);
                     break;
                 default:
-                    __.debug('got an unknown message');
+                    log.system.debug('mb:AbstractBrokerHandler:handleIncoming','got an unknown message');
                     Promise.resolve(this.other(content, message.fields.routingKey)).catch(genericErrorHandler);
                     break;
             }
@@ -264,12 +262,12 @@ export abstract class AbstractBrokerHandler {
 
     protected async send(messageID: number, messageIntention: string, response: any) {
         if (!this._responseChannel) {
-            __.error('got a response but the response channel is undefined?');
+            log.system.error('mb:AbstractBrokerHandler:send','got a response but the response channel is undefined?');
             return;
         }
 
         if (!await this._outgoingValidator(response)) {
-            __.error(`a response was submitted to the handler that did not validate against the provided 
+            log.system.error('mb:AbstractBrokerHandler:send',`a response was submitted to the handler that did not validate against the provided 
             outgoing validator object. sending an error response to the parent instead`, {
                 response: response as unknown,
             });
