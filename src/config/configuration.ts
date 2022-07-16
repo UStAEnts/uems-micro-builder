@@ -78,7 +78,7 @@ export namespace Configuration {
         if (!configurationParse.success) {
             tryApplyTrait('rabbitmq', 'failed');
             log.auto.system.error('Failed to parse the rabbit mq configuration from config as it did not match the given schema');
-            log.auto.system.error(`  Configuration Key = ${key}`);
+            log.auto.system.error(`  Configuration Key = ${String(key)}`);
             configurationParse.error.format()._errors.forEach((error, index) => {
                 log.auto.system.error(`  [${index}]: ${error}`);
             });
@@ -136,7 +136,7 @@ export namespace Configuration {
         let configurationParse = DefaultDatabaseValidator.safeParse(configuration[key]);
         if (!configurationParse.success) {
             log.auto.system.error('Failed to parse the database configuration from config as it did not match the given schema');
-            log.auto.system.error(`  Configuration Key = ${key}`);
+            log.auto.system.error(`  Configuration Key = ${String(key)}`);
             configurationParse.error.format()._errors.forEach((error, index) => {
                 log.auto.system.error(`  [${index}]: ${error}`);
             });
@@ -245,7 +245,7 @@ export default async function bootstrap<T extends zod.ZodTypeAny, M extends Brok
     incoming?: DataValidator,
     outgoing?: DataValidator,
 ): Promise<[zod.infer<T>, MongoClient, RabbitNetworkHandler<M['generic'], M['create'], M['remove'], M['read'], M['update'], M['response']>]> {
-    const setup = await Configuration.load(module, schema);
+    const setup = await Configuration.load(module, schema) as any;
 
     if (!Object.prototype.hasOwnProperty.call(setup, database) || !(database in setup))
         throw new Error(`Database key [${database}] was not contained in the loaded configuration`);
