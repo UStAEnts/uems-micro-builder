@@ -217,8 +217,10 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
 				...(query.posted.greater ? { $gte: query.posted.greater } : {}),
 			}
 
-		if (Array.isArray(query.id)) exec._id = { $in: query.id.map((e) => new ObjectId(e)) };
-		else exec._id = new ObjectId(query.id);
+		if (query.id) {
+			if (Array.isArray(query.id)) exec._id = { $in: query.id.map((e) => new ObjectId(e)) };
+			else exec._id = new ObjectId(query.id);
+		}
 
 		if (query.assetType) exec.assetType = query.assetType;
 		else exec.assetType = {
