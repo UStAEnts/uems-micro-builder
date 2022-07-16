@@ -1,8 +1,8 @@
 {
   "name": "@uems/micro-builder",
-  "version": "1.0.3",
+  "version": "1.1.4",
   "description": "The base starting point for basic CRUD microservices that provides some flexibility in producing the results",
-  "main": "build/index.js",
+  "main": "build/src",
   "scripts": {
     "test": "jest --runInBand",
     "build": "tsc",
@@ -28,13 +28,16 @@
     "mongo-unit": "^2.0.1",
     "ts-jest": "^26.4.4",
     "ts-node": "^9.1.1",
-    "typescript": "^4.1.3"
+    "typescript": "^4.7.4"
   },
   "dependencies": {
-    "@uems/uemscommlib": "0.1.0-beta.46",
+    "@uems/uemscommlib": "2.0.0-beta.13",
     "amqplib": "^0.6.0",
+    "app-root-path": "^3.0.0",
+    "dayjs": "^1.11.2",
     "nanoevents": "^5.1.10",
-    "winston": "^3.3.3"
+    "winston": "^3.3.3",
+    "zod": "^3.17.3"
   },
   "optionalDependencies": {
     "mongodb": "^3.6.3"

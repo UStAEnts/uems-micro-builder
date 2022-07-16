@@ -1,8 +1,6 @@
 import { AbstractBrokerHandler, ConnectFunction, DataValidator, MessagingConfiguration } from "./AbstractBrokerHandler";
 import { createNanoEvents, Unsubscribe } from "nanoevents";
-import winston from "winston";
-
-const __ = winston.child({ label: __filename });
+import log from "../logging/Log";
 
 /**
  * Defines the interface of events dispatched by the message handler. This is used to inform the event handlers
@@ -109,7 +107,7 @@ export class RabbitNetworkHandler<GENERIC extends {msg_id: number, msg_intention
      */
     private handleReply = (User: GENERIC) => (
         (response: RESPONSE): void => {
-            __.info(`got a response to message ${User.msg_id} of status ${response.status}`);
+            log.system.info('mb:GenericRabbitNetworkHandler:handleReply', `got a response to message ${User.msg_id} of status ${response.status}`);
             void super.send(User.msg_id, User.msg_intention, response);
         }
     );

@@ -35,7 +35,7 @@ export async function defaultAfterAll(client: MongoClient, db: Db) {
     await MongoUnit.stop();
 }
 
-export async function defaultBeforeEach(initialData: any[], client: MongoClient, db: Db, collection: string = 'details') {
+export async function defaultBeforeEach<T>(initialData: T[], client: MongoClient, db: Db, collection: string = 'details') {
     if (initialData.length > 0) await db.collection(collection).insertMany(initialData);
 }
 

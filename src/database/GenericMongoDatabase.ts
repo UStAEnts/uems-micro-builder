@@ -3,8 +3,18 @@ import { createNanoEvents, Unsubscribe } from "nanoevents";
 import { Collection, Db, MongoClient, MongoClientOptions, ObjectId } from "mongodb";
 import winston from "winston";
 import { tryApplyTrait } from "../healthcheck/Healthcheck";
+import log from "../logging/Log";
 
-const __ = winston.child({ label: __filename });
+export function bindClientToHealthcheck(client: MongoClient){
+    client.on('close', () => tryApplyTrait('database.status', 'unhealthy'));
+    client.on('serverHeartbeatSucceeded', () => tryApplyTrait('database.status', 'healthy'));
+    client.on('serverHeartbeatFailed', () => tryApplyTrait('database.status', 'unhealthy'));
+    client.on('connectionClosed', () => tryApplyTrait('database.status', 'unhealthy'));
+    client.on('serverClosed', () => tryApplyTrait('database.status', 'unhealthy'));
+    client.on('error', () => tryApplyTrait('database.status', 'unhealthy'));
+    client.on('timeout', () => tryApplyTrait('database.status', 'unhealthy'));
+    tryApplyTrait('database.status', 'healthy');
+}
 
 export type MongoDBConfiguration = {
     username: string,
@@ -100,7 +110,7 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
         if (Object.prototype.hasOwnProperty.call(_configurationOrDB, 'username') && Object.prototype.hasOwnProperty.call(_configurationOrDB, 'collections')) {
             const conf = _configurationOrDB as MongoDBConfiguration;
 
-            __.debug('creating database using a new database connection');
+            log.system.debug('mb:GenericMongoDatabase:constructor','creating database using a new database connection');
             this._configuration = conf;
             const username = encodeURIComponent(this._configuration.username);
             const password = encodeURIComponent(this._configuration.password);
@@ -119,13 +129,9 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
                 } as MongoClientOptions,
             ).then((client) => {
                 this._client = client;
-                this._database = client.db(conf.database);
+                bindClientToHealthcheck(client);
 
-                this._database.on('close', () => tryApplyTrait('db.status', 'disconnected'));
-                this._database.on('disconnect', () => tryApplyTrait('db.status', 'disconnected'));
-                this._database.on('reconnect', () => tryApplyTrait('db.status', 'connected'));
-                this._database.on('connect', () => tryApplyTrait('db.status', 'connected'));
-                tryApplyTrait('db.status', 'connected');
+                this._database = client.db(conf.database);
 
                 this._details = this._database.collection(conf.collections.details);
                 this._changelog = this._database.collection(conf.collections.changelog);
@@ -139,16 +145,9 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
             const db = _configurationOrDB as Db;
 
             if (!collections) throw new Error('Invalid invocation, collection must be provided');
-            __.debug('creating database using an existing database connection', { collections });
+            log.system.debug('mb:GenericMongoDatabase:constructor','creating database using an existing database connection', { collections });
             // If collections is defined then we need the second constructor where the first param is a db
             this._database = db;
-
-            this._database.on('close', () => tryApplyTrait('db.status', 'disconnected'));
-            this._database.on('disconnect', () => tryApplyTrait('db.status', 'disconnected'));
-            this._database.on('reconnect', () => tryApplyTrait('db.status', 'connected'));
-            this._database.on('connect', () => tryApplyTrait('db.status', 'connected'));
-            tryApplyTrait('db.status', 'connected');
-
             this._details = db.collection(collections.details);
             this._changelog = db.collection(collections.changelog);
 
@@ -298,7 +297,7 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
                 ...additional,
                 id,
                 action,
-                timestamp: Date.now(),
+                timestamp: Math.floor(Date.now() / 1000),
             });
         } catch (e) {
             console.warn('Failed to save changelog');
