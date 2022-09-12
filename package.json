@@ -1,6 +1,6 @@
 {
   "name": "@uems/micro-builder",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "description": "The base starting point for basic CRUD microservices that provides some flexibility in producing the results",
   "main": "build/src",
   "scripts": {
@@ -21,7 +21,6 @@
   "devDependencies": {
     "@types/amqplib": "^0.5.17",
     "@types/jest": "^26.0.20",
-    "@types/mongodb": "^3.6.3",
     "@types/node": "^14.14.17",
     "axios": "^0.21.1",
     "jest": "^26.6.3",
@@ -40,7 +39,7 @@
     "zod": "^3.17.3"
   },
   "optionalDependencies": {
-    "mongodb": "^3.6.3"
+    "mongodb": "^4.8.0"
   },
   "bin": {
     "healthcheck": "./bin/healthcheck.js"
