@@ -16,9 +16,7 @@ export async function defaultBeforeAll(): Promise<{ client: MongoClient, db: Db 
     await MongoUnit.start();
 
     // Create the database connection and connect to the one we just created in memory
-    const client = new MongoClient(MongoUnit.getUrl(), {
-        useUnifiedTopology: true,
-    });
+    const client = new MongoClient(MongoUnit.getUrl(), {});
     await client.connect();
 
     // Then create a user database around this
