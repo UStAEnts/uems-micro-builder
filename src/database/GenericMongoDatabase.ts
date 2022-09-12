@@ -30,7 +30,7 @@ export type MongoDBConfiguration = {
     settings?: MongoClientOptions,
 };
 
-export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESENTATION> implements GenericDatabase<READ, CREATE, DELETE, UPDATE, REPRESENTATION> {
+export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESENTATION, TYPE=any, CHANGELOG=any> implements GenericDatabase<READ, CREATE, DELETE, UPDATE, REPRESENTATION> {
 
     /**
      * The emitter through which updates about this connection will be sent
@@ -54,12 +54,12 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
      * The collection storing entries themselves
      * @protected
      */
-    protected _details?: Collection;
+    protected _details?: Collection<TYPE>;
     /**
      * The collection storing changes to entries
      * @protected
      */
-    protected _changelog?: Collection;
+    protected _changelog?: Collection<CHANGELOG>;
 
     /**
      * The configuration used the construct this database connection
@@ -197,7 +197,7 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
      * @param changelog the collection in which a change trail should be recorded
      * @protected
      */
-    protected abstract createImpl(create: CREATE, details: Collection, changelog: Collection): Promise<string[]>;
+    protected abstract createImpl(create: CREATE, details: Collection<TYPE>, changelog: Collection<CHANGELOG>): Promise<string[]>;
 
     /**
      * The function that will actually be called when a delete action needs to take place. To avoid doubt that the
@@ -208,7 +208,7 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
      * @param changelog the collection in which a change trail should be recorded
      * @protected
      */
-    protected abstract deleteImpl(create: DELETE, details: Collection, changelog: Collection): Promise<string[]>;
+    protected abstract deleteImpl(create: DELETE, details: Collection<TYPE>, changelog: Collection<CHANGELOG>): Promise<string[]>;
 
     /**
      * The function that will actually be called when an update action needs to take place. To avoid doubt that the
@@ -219,7 +219,7 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
      * @param changelog the collection in which a change trail should be recorded
      * @protected
      */
-    protected abstract updateImpl(create: UPDATE, details: Collection, changelog: Collection): Promise<string[]>;
+    protected abstract updateImpl(create: UPDATE, details: Collection<TYPE>, changelog: Collection<CHANGELOG>): Promise<string[]>;
 
     /**
      * The function that will actually be called when a query action needs to take place. To avoid doubt that the
@@ -230,7 +230,7 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
      * @param changelog the collection in which a change trail should be recorded
      * @protected
      */
-    protected abstract queryImpl(create: READ, details: Collection, changelog: Collection): Promise<REPRESENTATION[]>;
+    protected abstract queryImpl(create: READ, details: Collection<TYPE>, changelog: Collection<CHANGELOG>): Promise<REPRESENTATION[]>;
 
     /**
      * Handles a create message by asserting the database exists and is connected and that both collections are
@@ -293,6 +293,7 @@ export abstract class GenericMongoDatabase<READ, CREATE, DELETE, UPDATE, REPRESE
         if (!this._changelog) return;
 
         try {
+            // @ts-ignore
             await this._changelog.insertOne({
                 ...additional,
                 id,

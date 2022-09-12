@@ -1,6 +1,6 @@
 import { GenericMongoDatabase, MongoDBConfiguration } from "./GenericMongoDatabase";
 import { CommentMessage, CommentResponse, has } from "@uems/uemscommlib";
-import { Collection, Db, FilterQuery, ObjectId, UpdateQuery } from "mongodb";
+import { Collection, Db, Filter, ObjectId } from "mongodb";
 import ReadCommentMessage = CommentMessage.ReadCommentMessage;
 import DeleteCommentMessage = CommentMessage.DeleteCommentMessage;
 import InternalComment = CommentResponse.InternalComment;
@@ -86,7 +86,7 @@ const transmute = (db: DatabaseComment): ShallowInternalComment => {
  * CRUD support for comments with enforcement of asset types to ensure that the comments interacted with through this
  * database do not interfere with each other
  */
-export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMessage, CreateCommentMessage, DeleteCommentMessage, UpdateCommentMessage, ShallowInternalComment> {
+export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMessage, CreateCommentMessage, DeleteCommentMessage, UpdateCommentMessage, ShallowInternalComment, DatabaseComment> {
 
 	/**
 	 * The set of assets which can be read/updated/created/deleted via this database instance
@@ -114,7 +114,7 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
 		this._assetType = assetType;
 
 
-		const register = (details: Collection) => {
+		const register = (details: Collection<DatabaseComment>) => {
 			void details.createIndex({ body: 'text' });
 		};
 
@@ -136,12 +136,12 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
 	 * @param changelog the collection into which the changelog should be managed
 	 * @protected
 	 */
-	protected async createImpl(create: CreateCommentMessage, details: Collection, changelog: Collection): Promise<string[]> {
+	protected async createImpl(create: CreateCommentMessage, details: Collection<DatabaseComment>, changelog: Collection): Promise<string[]> {
 		if (!this._assetType.includes(create.assetType)) {
 			throw new Error('Invalid asset type');
 		}
 
-		const entity: CreateDatabaseComment = {
+		const entity: Omit<DatabaseComment, '_id'> = {
 			requiredAttention: create.requiresAttention ?? false,
 			topic: create.topic ?? null,
 			poster: create.poster,
@@ -153,9 +153,9 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
 			body: create.body,
 		}
 
-		const result = await details.insertOne(entity);
+		const result = await details.insertOne(entity as any);
 
-		if (result.insertedCount !== 1 || result.insertedId === undefined) {
+		if (result.insertedId === undefined) {
 			throw new Error('failed to insert')
 		}
 
@@ -170,7 +170,7 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
 	 * @param changelog the collection into which the changelog should be managed
 	 * @protected
 	 */
-	protected deleteImpl(remove: DeleteCommentMessage, details: Collection, changelog: Collection): Promise<string[]> {
+	protected deleteImpl(remove: DeleteCommentMessage, details: Collection<DatabaseComment>, changelog: Collection): Promise<string[]> {
 		if (!ObjectId.isValid(remove.id)) {
 			throw new Error('invalid object id');
 		}
@@ -191,18 +191,14 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
 	 * @param changelog the changelog into which any changes should be recorded
 	 * @protected
 	 */
-	protected async queryImpl(query: ReadCommentMessage, details: Collection, changelog: Collection): Promise<ShallowInternalComment[]> {
+	protected async queryImpl(query: ReadCommentMessage, details: Collection<DatabaseComment>, changelog: Collection): Promise<ShallowInternalComment[]> {
 		if (query.assetType && !this._assetType.includes(query.assetType)) {
 			throw new Error('Invalid asset type');
 		}
 
-		const exec: FilterQuery<DatabaseComment> = {};
-
-		if (query.body) {
-			exec.$text = {
-				$search: query.body,
-			}
-		}
+		const exec: Filter<DatabaseComment> = {
+			...(query.body ? { $text: { $search: query.body } } : {}),
+		};
 
 		if (query.requiresAttention) exec.requiredAttention = true;
 		if (query.topic) exec.topic = query.topic;
@@ -278,7 +274,7 @@ export class GenericCommentDatabase extends GenericMongoDatabase<ReadCommentMess
 			},
 		}, query)
 
-		if (result.result.ok !== 1) {
+		if (result.modifiedCount !== 1) {
 			console.error(result);
 			throw new Error('failed to update');
 		}
