@@ -1,4 +1,10 @@
-import { Collection, FilterQuery, MongoError, ObjectId, UpdateQuery } from "mongodb";
+import {
+    Collection, Filter,
+    MongoError,
+    ObjectId,
+    OptionalId,
+    OptionalUnlessRequiredId, UpdateFilter,
+} from "mongodb";
 import { ClientFacingError } from "../errors/ClientFacingError";
 
 export const stripUndefined = <T>(data: T): T => Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)) as unknown as T;
@@ -23,9 +29,9 @@ export function genericEntityConversion<T,
 }
 
 export async function genericDelete<T>(
-    query: FilterQuery<T>,
+    query: Filter<T>,
     id: string,
-    details: Collection,
+    details: Collection<T>,
     logger?: (id: string, action: string, additional?: Record<string, any>) => Promise<void> | void,
 ): Promise<string[]> {
     let result;
@@ -48,14 +54,14 @@ export async function genericDelete<T>(
 export async function genericCreate<T, V>(
     entity: T,
     mapper: (input: T) => V,
-    details: Collection,
+    details: Collection<V>,
     duplicateHandler?: (e: MongoError) => Promise<void> | void,
     logger?: (id: string, action: string, additional?: Record<string, any>) => Promise<void> | void,
 ): Promise<string[]> {
     let result;
 
     try {
-        result = await details.insertOne(mapper(entity));
+        result = await details.insertOne(mapper(entity) as OptionalUnlessRequiredId<V>);
     } catch (e: any) {
         if (e.code === 11000) {
             if (duplicateHandler) await duplicateHandler(e);
@@ -66,7 +72,8 @@ export async function genericCreate<T, V>(
         throw e;
     }
 
-    if (result.insertedCount !== 1 || result.insertedId === undefined) {
+
+    if (result.insertedId === undefined) {
         throw new Error('failed to insert')
     }
 
@@ -76,15 +83,15 @@ export async function genericCreate<T, V>(
     return [id];
 }
 
-export async function genericUpdate<T extends { id: string }, K extends keyof T>(
+export async function genericUpdate<T extends { id: string }, K extends keyof T, C>(
     message: T,
     keys: K[],
-    details: Collection,
+    details: Collection<C>,
     additionalFilters: any = {},
     duplicateHandler?: (e: MongoError) => Promise<void> | void,
     keyManipulations?: Record<K, string>,
 ) {
-    const filter: FilterQuery<any> = {
+    const filter: Filter<C> = {
         _id: new ObjectId(message.id),
         ...additionalFilters,
     };
@@ -101,7 +108,7 @@ export async function genericUpdate<T extends { id: string }, K extends keyof T>
         }
     }
 
-    const changes: UpdateQuery<any> = {
+    const changes: UpdateFilter<any> = {
         $set: set,
     }
 
@@ -111,7 +118,7 @@ export async function genericUpdate<T extends { id: string }, K extends keyof T>
 
     let result;
     try {
-        result = await details.updateOne(filter, changes);
+        result = await details.updateOne(filter, changes as UpdateFilter<C>);
     } catch (e:any) {
         if (e.code === 11000) {
             if (duplicateHandler) await duplicateHandler(e);
@@ -126,7 +133,7 @@ export async function genericUpdate<T extends { id: string }, K extends keyof T>
         throw new ClientFacingError('invalid entity ID');
     }
 
-    if (result.result.ok !== 1) {
+    if (result.modifiedCount !== 1) {
         throw new Error('failed to update');
     }
 
